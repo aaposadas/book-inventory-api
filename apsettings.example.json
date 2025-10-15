@@ -1,0 +1,23 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "AllowedOrigin": "http://localhost:4200",
+  "Jwt": {
+    "Key": "REPLACE-WITH-YOUR-SECRET-KEY-MINIMUM-32-CHARACTERS",
+    "Issuer": "BookInventoryApi",
+    "Audience": "BookInventoryClient",
+    "ExpiresInMinutes": "60"
+  },
+  "MongoDbSettings": {
+    "ConnectionString": "REPLACE-WITH-YOUR-MONGODB-CONNECTION-STRING",
+    "DatabaseName": "BookInventory"
+  },
+  "GoogleBooks": {
+    "ApiKey": "REPLACE-WITH-YOUR-GOOGLE-BOOKS-API-KEY"
+  }
+}
