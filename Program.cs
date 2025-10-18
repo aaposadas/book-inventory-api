@@ -39,11 +39,8 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// Add controller services
 builder.Services.AddControllers();
 
 builder.Services.AddHttpClient();
@@ -71,7 +68,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Bind MongoDbSettings from config
 builder.Services.Configure<MongoDbSettings>(
     builder.Configuration.GetSection("MongoDbSettings"));
 
@@ -94,6 +90,6 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.MapControllers(); // Map controller routes
+app.MapControllers(); 
 
 app.Run();
