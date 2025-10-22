@@ -7,6 +7,7 @@ using System.ComponentModel.DataAnnotations;
 using BookInventory.Api.Models;
 using BookInventory.Api.Data;
 using MongoDB.Driver;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BookInventory.Api.Controllers
 {
@@ -44,8 +45,6 @@ namespace BookInventory.Api.Controllers
 
     public class AuthResponse
     {
-        public string Token { get; set; } = string.Empty;
-        public DateTime ExpiresAt { get; set; }
         public UserInfo User { get; set; } = null!;
     }
 
@@ -64,6 +63,8 @@ namespace BookInventory.Api.Controllers
         private readonly IConfiguration _config;
         private readonly IMongoCollection<AppUser> _users;
         private readonly ILogger<AuthController> _logger;
+        // Cookie name constant
+        private const string AuthCookieName = "auth_token";
 
         public AuthController(
             IConfiguration config,
@@ -115,10 +116,11 @@ namespace BookInventory.Api.Controllers
                 // Generate token
                 var (token, expiresAt) = GenerateJwtToken(user);
 
+                SetAuthCookie(token, expiresAt);
+
+
                 return Ok(new AuthResponse
                 {
-                    Token = token,
-                    ExpiresAt = expiresAt,
                     User = new UserInfo
                     {
                         Id = user.Id,
@@ -156,10 +158,11 @@ namespace BookInventory.Api.Controllers
 
                 var (token, expiresAt) = GenerateJwtToken(user);
 
+                // Set auth cookie for login flow as well
+                SetAuthCookie(token, expiresAt);
+
                 return Ok(new AuthResponse
                 {
-                    Token = token,
-                    ExpiresAt = expiresAt,
                     User = new UserInfo
                     {
                         Id = user.Id ?? "",
@@ -173,6 +176,55 @@ namespace BookInventory.Api.Controllers
             {
                 _logger.LogError(ex, "Error during user login");
                 return StatusCode(500, new { message = "An error occurred during login" });
+            }
+        }
+
+        [HttpPost("refresh")]
+        [Authorize]
+        public async Task<ActionResult<AuthResponse>> RefreshToken()
+        {
+            try
+            {
+                // Get user ID from current token claims
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? User.FindFirst("sub")?.Value;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    _logger.LogWarning("Refresh token failed - no user ID in claims");
+                    return Unauthorized(new { message = "Invalid token" });
+                }
+
+                // Look up user in database
+                var user = await _users.Find(u => u.Id == userId).FirstOrDefaultAsync();
+
+                if (user == null)
+                {
+                    _logger.LogWarning("Refresh token failed - user {UserId} not found", userId);
+                    return Unauthorized(new { message = "User not found" });
+                }
+
+                // Generate new token with fresh expiration
+                var (token, expiresAt) = GenerateJwtToken(user);
+                SetAuthCookie(token, expiresAt);
+
+                _logger.LogInformation("Token refreshed successfully for user {UserId}", userId);
+
+                return Ok(new AuthResponse
+                {
+                    User = new UserInfo
+                    {
+                        Id = user.Id ?? "",
+                        Email = user.Email,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing token");
+                return StatusCode(500, new { message = "An error occurred during token refresh" });
             }
         }
 
@@ -231,6 +283,38 @@ namespace BookInventory.Api.Controllers
             );
 
             return (new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
+        }
+
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            // Clear the auth cookie
+            Response.Cookies.Delete(AuthCookieName, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false, // Use in production with HTTPS
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            });
+
+            return Ok(new { message = "Logged out successfully" });
+        }
+
+        /// <summary>
+        /// Sets the JWT token as an httpOnly cookie
+        /// </summary>
+        private void SetAuthCookie(string token, DateTime expiresAt)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,        // Cannot be accessed by JavaScript
+                Secure = false,          // Only sent over HTTPS (set to false for local dev if needed)
+                SameSite = SameSiteMode.Lax,  // CSRF protection
+                Expires = expiresAt,    // Cookie expires when token expires
+                Path = "/"              // Available for all paths
+            };
+
+            Response.Cookies.Append(AuthCookieName, token, cookieOptions);
         }
     }
 }
