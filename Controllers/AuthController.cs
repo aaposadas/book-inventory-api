@@ -305,13 +305,17 @@ namespace BookInventory.Api.Controllers
         /// </summary>
         private void SetAuthCookie(string token, DateTime expiresAt)
         {
+            var isProduction = _config.GetValue<bool>("IsProduction")
+                            || !Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                                ?.Equals("Development", StringComparison.OrdinalIgnoreCase) == true;
+
             var cookieOptions = new CookieOptions
             {
-                HttpOnly = true,        // Cannot be accessed by JavaScript
-                Secure = false,          // Only sent over HTTPS (set to false for local dev if needed)
-                SameSite = SameSiteMode.Strict,  // CSRF protection
-                Expires = expiresAt,    // Cookie expires when token expires
-                Path = "/"              // Available for all paths
+                HttpOnly = true,
+                Secure = isProduction, // true in prod, false in dev
+                SameSite = isProduction ? SameSiteMode.None : SameSiteMode.Lax, // None in prod, Lax in dev
+                Expires = expiresAt,
+                Path = "/"
             };
 
             Response.Cookies.Append(AuthCookieName, token, cookieOptions);
