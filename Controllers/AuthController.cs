@@ -309,7 +309,7 @@ namespace BookInventory.Api.Controllers
             {
                 HttpOnly = true,        // Cannot be accessed by JavaScript
                 Secure = false,          // Only sent over HTTPS (set to false for local dev if needed)
-                SameSite = SameSiteMode.Lax,  // CSRF protection
+                SameSite = SameSiteMode.Strict,  // CSRF protection
                 Expires = expiresAt,    // Cookie expires when token expires
                 Path = "/"              // Available for all paths
             };
